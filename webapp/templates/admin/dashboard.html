@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Portal — BrainScan AI</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; }
+    nav {
+      background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.08);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+    }
+    nav h1 { color:#38bdf8; font-size:1.3rem; }
+    .nav-right { display:flex; align-items:center; gap:12px; }
+    .admin-badge {
+      background:rgba(239,68,68,0.15); color:#f87171;
+      border:1px solid #ef4444; padding:3px 12px;
+      border-radius:20px; font-size:0.75rem; font-weight:700;
+    }
+    .btn-logout { background:rgba(255,255,255,0.08); color:#94a3b8; border:none; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.88rem; }
+
+    .container { max-width:1400px; margin:0 auto; padding:32px 32px; }
+
+    /* Stats */
+    .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:32px; }
+    .stat-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:20px; }
+    .stat-card .label { font-size:0.75rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
+    .stat-card .value { font-size:1.8rem; font-weight:700; color:#38bdf8; margin-top:6px; }
+
+    /* Tabs */
+    .tabs { display:flex; gap:4px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:24px; }
+    .tab { padding:10px 22px; cursor:pointer; color:#94a3b8; font-size:0.9rem; border-bottom:2px solid transparent; transition:all 0.2s; }
+    .tab.active { color:#38bdf8; border-bottom-color:#38bdf8; }
+
+    /* Create doctor form */
+    .create-form {
+      background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+      border-radius:14px; padding:28px; max-width:560px; margin-bottom:28px;
+    }
+    .create-form h3 { font-size:1rem; margin-bottom:20px; color:#e2e8f0; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+    .form-group { display:flex; flex-direction:column; gap:6px; }
+    .form-group label { font-size:0.78rem; color:#94a3b8; }
+    .form-group input {
+      padding:10px 14px; background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.15); border-radius:8px;
+      color:#e2e8f0; font-size:0.9rem; outline:none;
+    }
+    .form-group input:focus { border-color:#38bdf8; }
+    .btn-create {
+      padding:11px 28px; background:linear-gradient(135deg,#0ea5e9,#6366f1);
+      border:none; border-radius:8px; color:white; font-size:0.9rem;
+      font-weight:600; cursor:pointer; margin-top:6px;
+    }
+    .msg { margin-top:12px; padding:10px 14px; border-radius:8px; font-size:0.85rem; display:none; }
+    .msg.success { background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+    .msg.error   { background:rgba(239,68,68,0.1);  color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+
+    /* Tables */
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; padding:12px 16px; font-size:0.75rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid rgba(255,255,255,0.08); }
+    td { padding:13px 16px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem; }
+    tr:hover td { background:rgba(255,255,255,0.02); }
+
+    .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; }
+    .badge-patient { background:rgba(56,189,248,0.1);  color:#38bdf8; border:1px solid rgba(56,189,248,0.3); }
+    .badge-doctor  { background:rgba(34,197,94,0.1);   color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+    .badge-admin   { background:rgba(239,68,68,0.1);   color:#f87171; border:1px solid #ef4444; }
+    .badge-pending  { background:rgba(234,179,8,0.1);  color:#fbbf24; border:1px solid #f59e0b; }
+    .badge-reviewed { background:rgba(34,197,94,0.1);  color:#4ade80; border:1px solid #22c55e; }
+    .badge-tumor    { background:rgba(239,68,68,0.1);  color:#f87171; border:1px solid #ef4444; }
+    .badge-notumor  { background:rgba(34,197,94,0.1);  color:#4ade80; border:1px solid #22c55e; }
+
+    .btn-delete {
+      background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.3);
+      border-radius:6px; padding:4px 12px; cursor:pointer; font-size:0.78rem;
+    }
+    .btn-delete:hover { background:rgba(239,68,68,0.2); }
+
+    .filter-row { display:flex; gap:10px; margin-bottom:16px; }
+    .filter-btn {
+      padding:7px 18px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);
+      background:transparent; color:#94a3b8; cursor:pointer; font-size:0.82rem; transition:all 0.2s;
+    }
+    .filter-btn.active { background:rgba(56,189,248,0.1); color:#38bdf8; border-color:#38bdf8; }
+
+    .section-panel { display:none; }
+    .section-panel.active { display:block; }
+    .empty { text-align:center; padding:48px; color:#475569; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <h1>🧠 BrainScan AI</h1>
+  <div class="nav-right">
+    <span class="admin-badge">🔐 ADMIN</span>
+    <span id="adminName" style="color:#94a3b8;font-size:0.88rem;"></span>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats" id="statsRow">
+    <div class="stat-card"><div class="label">Total Patients</div><div class="value" id="sPatients">—</div></div>
+    <div class="stat-card"><div class="label">Total Doctors</div><div class="value" id="sDoctors">—</div></div>
+    <div class="stat-card"><div class="label">Total Scans</div><div class="value" id="sScans">—</div></div>
+    <div class="stat-card"><div class="label">Pending Reviews</div><div class="value" id="sPending">—</div></div>
+    <div class="stat-card"><div class="label">Reviewed</div><div class="value" id="sReviewed">—</div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('users')">👥 User Management</div>
+    <div class="tab" onclick="showTab('doctors')">➕ Create Doctor</div>
+    <div class="tab" onclick="showTab('scans')">🧬 All Scans</div>
+  </div>
+
+  <!-- User Management -->
+  <div class="section-panel active" id="tab-users">
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="filterUsers('all', this)">All</button>
+      <button class="filter-btn" onclick="filterUsers('patient', this)">Patients</button>
+      <button class="filter-btn" onclick="filterUsers('doctor', this)">Doctors</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Action</th></tr>
+      </thead>
+      <tbody id="usersBody"></tbody>
+    </table>
+    <div id="usersEmpty" class="empty" style="display:none"><p>No users found.</p></div>
+  </div>
+
+  <!-- Create Doctor -->
+  <div class="section-panel" id="tab-doctors">
+    <div class="create-form">
+      <h3>➕ Create New Doctor Account</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="newDocName" placeholder="Dr. Full Name"/>
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="newDocEmail" placeholder="doctor@hospital.com"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="newDocPass" placeholder="Set a secure password"/>
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-top:20px;">
+          <button class="btn-create" onclick="createDoctor()">➕ Create Account</button>
+        </div>
+      </div>
+      <div class="msg" id="createMsg"></div>
+    </div>
+
+    <h3 style="font-size:0.85rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Existing Doctor Accounts</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Email</th><th>Joined</th><th>Action</th></tr>
+      </thead>
+      <tbody id="doctorsBody"></tbody>
+    </table>
+  </div>
+
+  <!-- All Scans -->
+  <div class="section-panel" id="tab-scans">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Patient</th><th>Upload Date</th><th>AI Result</th><th>Confidence</th><th>Status</th><th>Doctor's Diagnosis</th><th>Reviewed By</th></tr>
+      </thead>
+      <tbody id="scansBody"></tbody>
+    </table>
+    <div id="scansEmpty" class="empty" style="display:none"><p>No scans yet.</p></div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/';
+
+  // Server-side role guard
+  (async () => {
+    try {
+      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { localStorage.clear(); window.location.href = '/'; return; }
+      const user = await res.json();
+      if (user.role !== 'admin') {
+        alert('Access denied. Admin only.');
+        localStorage.clear();
+        window.location.href = '/';
+        return;
+      }
+      document.getElementById('adminName').textContent = user.name;
+      loadAll();
+    } catch(e) { localStorage.clear(); window.location.href = '/'; }
+  })();
+
+  let allUsers = [];
+
+  async function loadAll() {
+    await Promise.all([loadStats(), loadUsers(), loadScans()]);
+  }
+
+  async function loadStats() {
+    const res = await fetch('/api/admin/stats', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('sPatients').textContent = d.patients;
+    document.getElementById('sDoctors').textContent  = d.doctors;
+    document.getElementById('sScans').textContent    = d.total_scans;
+    document.getElementById('sPending').textContent  = d.pending_reviews;
+    document.getElementById('sReviewed').textContent = d.reviewed;
+  }
+
+  async function loadUsers() {
+    const res = await fetch('/api/admin/users', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) return;
+    allUsers = await res.json();
+    renderUsers(allUsers);
+    renderDoctors(allUsers.filter(u => u.role === 'doctor'));
+  }
+
+  function renderUsers(users) {
+    const tbody = document.getElementById('usersBody');
+    if (!users.length) { document.getElementById('usersEmpty').style.display = 'block'; tbody.innerHTML = ''; return; }
+    document.getElementById('usersEmpty').style.display = 'none';
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td style="color:#64748b">${u.id}</td>
+        <td><strong>${u.name}</strong></td>
+        <td style="color:#94a3b8">${u.email}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td style="color:#64748b">${new Date(u.created_at).toLocaleDateString()}</td>
+        <td>${u.role !== 'admin' ? `<button class="btn-delete" onclick="deleteUser(${u.id},'${u.name}')">🗑 Delete</button>` : '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderDoctors(doctors) {
+    const tbody = document.getElementById('doctorsBody');
+    if (!doctors.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:#475569;text-align:center;padding:24px">No doctors yet.</td></tr>'; return; }
+    tbody.innerHTML = doctors.map(d => `
+      <tr>
+        <td style="color:#64748b">${d.id}</td>
+        <td><strong>${d.name}</strong></td>
+        <td style="color:#94a3b8">${d.email}</td>
+        <td style="color:#64748b">${new Date(d.created_at).toLocaleDateString()}</td>
+        <td><button class="btn-delete" onclick="deleteUser(${d.id},'${d.name}')">🗑 Delete</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function filterUsers(role, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderUsers(role === 'all' ? allUsers : allUsers.filter(u => u.role === role));
+  }
+
+  async function createDoctor() {
+    const name     = document.getElementById('newDocName').value.trim();
+    const email    = document.getElementById('newDocEmail').value.trim();
+    const password = document.getElementById('newDocPass').value;
+    const msg      = document.getElementById('createMsg');
+
+    if (!name || !email || !password) { showMsg('error', 'All fields are required.'); return; }
+    if (password.length < 6) { showMsg('error', 'Password must be at least 6 characters.'); return; }
+
+    const res = await fetch('/api/admin/create-doctor', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      showMsg('success', `✅ Doctor account created — ${email} / Password: ${password}`);
+      document.getElementById('newDocName').value = '';
+      document.getElementById('newDocEmail').value = '';
+      document.getElementById('newDocPass').value = '';
+      loadUsers();
+      loadStats();
+    } else {
+      showMsg('error', data.detail || 'Failed to create account.');
+    }
+  }
+
+  async function deleteUser(id, name) {
+    if (!confirm(`Delete account for "${name}"? This cannot be undone.`)) return;
+    const res = await fetch('/api/admin/user/' + id, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (res.ok) { loadUsers(); loadStats(); }
+    else alert(data.detail || 'Delete failed.');
+  }
+
+  async function loadScans() {
+    const res = await fetch('/api/admin/scans', { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) return;
+    const scans = await res.json();
+    const tbody = document.getElementById('scansBody');
+    if (!scans.length) { document.getElementById('scansEmpty').style.display = 'block'; return; }
+    tbody.innerHTML = scans.map(s => `
+      <tr>
+        <td style="color:#64748b">${s.id}</td>
+        <td>${s.patient_name}<br><span style="color:#64748b;font-size:0.78rem">${s.patient_email}</span></td>
+        <td style="color:#64748b">${new Date(s.upload_time).toLocaleDateString()}</td>
+        <td>${s.tumor_detected !== null
+          ? (s.tumor_detected
+            ? `<span class="badge badge-tumor">🔴 ${s.tumor_type||'Tumor'}</span>`
+            : '<span class="badge badge-notumor">🟢 No Tumor</span>')
+          : '—'}</td>
+        <td>${s.confidence !== null ? (s.confidence*100).toFixed(1)+'%' : '—'}</td>
+        <td><span class="badge badge-${s.status}">${s.status === 'pending' ? '⏳ Pending' : '✅ Reviewed'}</span></td>
+        <td>${s.diagnosis || '<span style="color:#475569">Awaiting</span>'}</td>
+        <td>${s.doctor_name || '<span style="color:#475569">—</span>'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function showTab(name) {
+    document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  function showMsg(type, text) {
+    const msg = document.getElementById('createMsg');
+    msg.className = 'msg ' + type;
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 8000);
+  }
+
+  function logout() { localStorage.clear(); window.location.href = '/'; }
+</script>
+</body>
+</html>

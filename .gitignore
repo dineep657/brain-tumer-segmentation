@@ -2,12 +2,32 @@
 venv/
 __pycache__/
 *.pyc
+*.pyo
 .cache/
+.kiro/
 
 # Datasets (large image collections)
 dataset/
 classification_dataset/
 
+# Trained model weights (large binary files)
+models/*.pth
+
+# Uploaded MRI scans & generated images (patient data)
+webapp/uploads/
+
+# SQLite database
+data/patient_records.db
+data/*.db
+
+# Environment / secrets
+.env
+*.env
+
 # System / OS
 .DS_Store
 Thumbs.db
+
+# Sample data images (generated)
+data/sample_*.png
+data/2d_tumor_overlay.png

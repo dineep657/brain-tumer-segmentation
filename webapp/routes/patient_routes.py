@@ -1,0 +1,171 @@
+"""
+patient_routes.py — Patient scan upload and history endpoints.
+"""
+
+import os
+import shutil
+import uuid
+import numpy as np
+import torch
+import torch.nn.functional as F
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from webapp.auth import get_current_user, require_role
+from webapp.database import execute_query
+
+# ML imports
+from inference_2d import preprocess_2d, predict_2d
+from classifier_2d import classify_tumor_2d, load_trained_classifier
+from gradcam import generate_gradcam, resize_activation_map, blend_heatmap_with_image
+from image_processing import render_segmentation_figure
+from PIL import Image
+
+router = APIRouter()
+
+# Absolute path to uploads dir — always relative to project root
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+UPLOAD_DIR = os.path.join(BASE_DIR, "webapp", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+@router.post("/upload")
+async def upload_scan(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_role("patient")),
+):
+    # Save uploaded file
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in (".png", ".jpg", ".jpeg"):
+        raise HTTPException(status_code=400, detail="Only PNG/JPG images allowed")
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    save_path = os.path.join(UPLOAD_DIR, filename)
+
+    with open(save_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Save scan record
+    scan_id = execute_query(
+        "INSERT INTO scans (patient_id, filename, image_path) VALUES (%s, %s, %s)",
+        (current_user["id"], file.filename, filename),
+    )
+
+    # Run ML inference
+    try:
+        tensor, raw_original, _ = preprocess_2d(save_path)
+        pred_info = predict_2d(tensor, raw_original)
+
+        if pred_info["is_valid_mri"]:
+            cls_info = classify_tumor_2d(tensor, tumor_detected=pred_info["tumor_detected"])
+        else:
+            cls_info = {"tumor_type": "Invalid Input", "confidence": None, "classifier_called": False}
+
+        mask = pred_info["mask"]
+
+        # 1. Save segmentation overlay image (original + red mask + yellow contour)
+        overlay_filename = None
+        try:
+            fig = render_segmentation_figure(
+                raw_original, mask, alpha=0.5,
+                show_overlay=pred_info["is_valid_mri"],
+                high_contrast=False,
+                show_contours=pred_info["is_valid_mri"],
+                title="Tumor Segmentation Overlay"
+            )
+            overlay_filename = f"overlay_{uuid.uuid4().hex}.png"
+            fig.savefig(
+                os.path.join(UPLOAD_DIR, overlay_filename),
+                dpi=150, bbox_inches='tight', facecolor='#0E1117'
+            )
+            plt.close(fig)
+        except Exception:
+            overlay_filename = None
+
+        # 2. Grad-CAM heatmap
+        gradcam_filename = None
+        if pred_info["is_valid_mri"] and pred_info["tumor_detected"] and cls_info.get("classifier_called"):
+            try:
+                from train_2d_classifier import CLASSES
+                model = load_trained_classifier()
+                top_idx = CLASSES.index(cls_info["tumor_type"]) if cls_info["tumor_type"] in CLASSES else 0
+                tensor_128 = F.interpolate(tensor, size=(128, 128), mode="bilinear", align_corners=False)
+                activation = generate_gradcam(model, tensor_128, top_idx)
+                activation_resized = resize_activation_map(activation, raw_original.shape[0], raw_original.shape[1])
+                gradcam_img = blend_heatmap_with_image(raw_original, activation_resized, alpha=0.5)
+                gradcam_filename = f"gradcam_{uuid.uuid4().hex}.png"
+                Image.fromarray(gradcam_img).save(os.path.join(UPLOAD_DIR, gradcam_filename))
+            except Exception:
+                gradcam_filename = None
+
+        # 3. Save AI result to DB
+        execute_query(
+            """INSERT INTO ai_results
+               (scan_id, tumor_detected, tumor_type, confidence, gradcam_path, overlay_path)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (
+                scan_id,
+                bool(pred_info["tumor_detected"]),
+                cls_info.get("tumor_type", "Unknown"),
+                cls_info.get("confidence"),
+                gradcam_filename,
+                overlay_filename,
+            ),
+        )
+
+        return {
+            "scan_id": scan_id,
+            "tumor_detected": pred_info["tumor_detected"],
+            "tumor_type": cls_info.get("tumor_type"),
+            "confidence": cls_info.get("confidence"),
+            "image_path": filename,
+            "overlay_path": overlay_filename,
+            "gradcam_path": gradcam_filename,
+            "message": "Scan analysed. Awaiting doctor review.",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+
+
+@router.get("/scans")
+def get_my_scans(current_user: dict = Depends(require_role("patient"))):
+    rows = execute_query(
+        """SELECT s.id, s.filename, s.upload_time, s.status,
+                  r.tumor_detected, r.tumor_type, r.confidence,
+                  r.gradcam_path,
+                  dr.diagnosis, dr.notes, dr.reviewed_at,
+                  u.name AS doctor_name
+           FROM scans s
+           LEFT JOIN ai_results r ON r.scan_id = s.id
+           LEFT JOIN doctor_reviews dr ON dr.scan_id = s.id
+           LEFT JOIN users u ON u.id = dr.doctor_id
+           WHERE s.patient_id = %s
+           ORDER BY s.upload_time DESC""",
+        (current_user["id"],),
+        fetch=True,
+    )
+    return rows
+
+
+@router.get("/scan/{scan_id}")
+def get_scan_detail(scan_id: int, current_user: dict = Depends(require_role("patient"))):
+    rows = execute_query(
+        """SELECT s.id, s.filename, s.image_path, s.upload_time, s.status,
+                  r.tumor_detected, r.tumor_type, r.confidence,
+                  r.gradcam_path, r.overlay_path,
+                  dr.diagnosis, dr.notes, dr.reviewed_at,
+                  u.name AS doctor_name
+           FROM scans s
+           LEFT JOIN ai_results r ON r.scan_id = s.id
+           LEFT JOIN doctor_reviews dr ON dr.scan_id = s.id
+           LEFT JOIN users u ON u.id = dr.doctor_id
+           WHERE s.id = %s AND s.patient_id = %s""",
+        (scan_id, current_user["id"]),
+        fetch=True,
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return rows[0]

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Patient Dashboard — BrainScan AI</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; }
+    nav {
+      background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.08);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+    }
+    nav h1 { color:#38bdf8; font-size:1.3rem; }
+    nav div { display:flex; align-items:center; gap:16px; }
+    .btn-nav {
+      padding:8px 18px; border-radius:8px; border:none; cursor:pointer; font-size:0.88rem;
+    }
+    .btn-upload { background:linear-gradient(135deg,#0ea5e9,#6366f1); color:white; }
+    .btn-logout { background:rgba(255,255,255,0.08); color:#94a3b8; }
+    .container { max-width:960px; margin:0 auto; padding:32px 24px; }
+    .welcome { margin-bottom:28px; }
+    .welcome h2 { font-size:1.5rem; color:#f8fafc; }
+    .welcome p { color:#94a3b8; margin-top:4px; font-size:0.9rem; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
+    .stat-card {
+      background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+      border-radius:12px; padding:20px;
+    }
+    .stat-card .label { font-size:0.8rem; color:#94a3b8; margin-bottom:6px; }
+    .stat-card .value { font-size:1.8rem; font-weight:700; color:#38bdf8; }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; padding:12px 16px; font-size:0.78rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid rgba(255,255,255,0.08); }
+    td { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem; }
+    tr:hover td { background:rgba(255,255,255,0.03); }
+    .badge {
+      display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600;
+    }
+    .badge-pending { background:rgba(234,179,8,0.15); color:#fbbf24; border:1px solid #f59e0b; }
+    .badge-reviewed { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
+    .badge-tumor { background:rgba(239,68,68,0.15); color:#f87171; border:1px solid #ef4444; }
+    .badge-notumor { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
+    .btn-view { background:rgba(56,189,248,0.1); color:#38bdf8; border:1px solid #38bdf8; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:0.8rem; }
+    .empty { text-align:center; padding:48px; color:#475569; }
+    .empty p { margin-top:8px; font-size:0.9rem; }
+  </style>
+</head>
+<body>
+<nav>
+  <h1>🧠 BrainScan AI</h1>
+  <div>
+    <span id="userName" style="color:#94a3b8;font-size:0.88rem;"></span>
+    <button class="btn-nav btn-upload" onclick="window.location='/patient/upload'">+ Upload Scan</button>
+    <button class="btn-nav btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="welcome">
+    <h2>Your Dashboard</h2>
+    <p>View your MRI scan history and doctor reviews.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="label">Total Scans</div><div class="value" id="totalScans">—</div></div>
+    <div class="stat-card"><div class="label">Pending Review</div><div class="value" id="pendingCount">—</div></div>
+    <div class="stat-card"><div class="label">Reviewed</div><div class="value" id="reviewedCount">—</div></div>
+  </div>
+
+  <div id="scanTable">
+    <table>
+      <thead>
+        <tr>
+          <th>File</th><th>Upload Date</th><th>AI Result</th><th>Confidence</th><th>Status</th><th>Doctor's Verdict</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="scanBody"></tbody>
+    </table>
+    <div id="emptyMsg" class="empty hidden">
+      <p>🧬 No scans uploaded yet.</p>
+      <p>Click <strong>+ Upload Scan</strong> to get started.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/';
+  document.getElementById('userName').textContent = localStorage.getItem('name') || '';
+
+  // Server-side role verification — prevents patients accessing doctor routes
+  async function verifyRole() {
+    try {
+      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { localStorage.clear(); window.location.href = '/'; return; }
+      const user = await res.json();
+      if (user.role !== 'patient') { localStorage.clear(); window.location.href = '/'; return; }
+      // Update localStorage with server-verified values
+      localStorage.setItem('role', user.role);
+      localStorage.setItem('name', user.name);
+      document.getElementById('userName').textContent = user.name;
+    } catch(e) { localStorage.clear(); window.location.href = '/'; }
+  }
+
+  async function loadScans() {
+    const res = await fetch('/api/patient/scans', { headers: { Authorization: 'Bearer ' + token } });
+    if (res.status === 401) { logout(); return; }
+    const scans = await res.json();
+
+    document.getElementById('totalScans').textContent = scans.length;
+    document.getElementById('pendingCount').textContent = scans.filter(s => s.status === 'pending').length;
+    document.getElementById('reviewedCount').textContent = scans.filter(s => s.status === 'reviewed').length;
+
+    const tbody = document.getElementById('scanBody');
+    if (!scans.length) { document.getElementById('emptyMsg').classList.remove('hidden'); return; }
+
+    tbody.innerHTML = scans.map(s => `
+      <tr>
+        <td>${s.filename}</td>
+        <td>${new Date(s.upload_time).toLocaleDateString()}</td>
+        <td>${s.tumor_detected !== null
+          ? (s.tumor_detected
+            ? '<span class="badge badge-tumor">🔴 ' + (s.tumor_type||'Tumor') + '</span>'
+            : '<span class="badge badge-notumor">🟢 No Tumor</span>')
+          : '—'}</td>
+        <td>${s.confidence !== null ? (s.confidence * 100).toFixed(1) + '%' : '—'}</td>
+        <td><span class="badge badge-${s.status}">${s.status === 'pending' ? '⏳ Pending' : '✅ Reviewed'}</span></td>
+        <td>${s.diagnosis ? '<strong>' + s.diagnosis + '</strong>' : '<span style="color:#475569">Awaiting review</span>'}</td>
+        <td><button class="btn-view" onclick="window.location='/patient/upload?scan_id=${s.id}'">View</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = '/';
+  }
+
+  verifyRole();
+  loadScans();
+</script>
+</body>
+</html>

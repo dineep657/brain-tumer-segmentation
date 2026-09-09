@@ -9,6 +9,13 @@ from classifier_2d import classify_tumor_2d, CLASSES
 from metrics_2d import analyze_tumor_metrics
 from image_processing import render_segmentation_figure, export_overlay_as_png
 from pdf_generator import generate_2d_pdf_report
+from confidence_display import resolve_tumor_type_label, LOW_CONFIDENCE_WARNING_TEXT
+from patient_records import init_db, validate_patient_fields, insert_patient_record, query_patient_history, delete_all_records
+from gradcam import generate_gradcam, resize_activation_map, blend_heatmap_with_image, get_gradcam_panel_title
+from classifier_2d import load_trained_classifier
+
+# Initialise SQLite DB on startup
+init_db()
 
 # 1. Page Configuration & Custom Styling
 st.set_page_config(
@@ -75,6 +82,15 @@ st.markdown("""
         display: inline-block;
     }
     .status-badge-invalid {
+        background-color: rgba(234, 179, 8, 0.2);
+        color: #FACC15;
+        border: 1px solid #EAB308;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-weight: 700;
+        display: inline-block;
+    }
+    .status-badge-lowconf {
         background-color: rgba(234, 179, 8, 0.2);
         color: #FACC15;
         border: 1px solid #EAB308;
@@ -228,14 +244,41 @@ def run_dynamic_pipeline(src):
     plt.close(fig_pdf)
     
     png_bytes = export_overlay_as_png(raw_original, mask, alpha=0.5)
+
+    # 3. Grad-CAM (only when tumor detected and classifier was called)
+    gradcam_img = None
+    if pred_info["is_valid_mri"] and pred_info["tumor_detected"] and cls_info.get("classifier_called"):
+        try:
+            classifier_model = load_trained_classifier()
+            from train_2d_classifier import CLASSES as CLS
+            top_idx = CLS.index(cls_info["tumor_type"]) if cls_info["tumor_type"] in CLS else 0
+            # Resize tensor to 128x128 for classifier input
+            import torch.nn.functional as F
+            tensor_128 = F.interpolate(tensor, size=(128, 128), mode="bilinear", align_corners=False)
+            activation = generate_gradcam(classifier_model, tensor_128, top_idx)
+            activation_resized = resize_activation_map(activation, raw_original.shape[0], raw_original.shape[1])
+            gradcam_img = blend_heatmap_with_image(raw_original, activation_resized, alpha=0.5)
+        except Exception as e:
+            gradcam_img = None
     
-    return raw_original, mask, metrics, pred_info, cls_info, overlay_img_path, png_bytes
+    return raw_original, mask, metrics, pred_info, cls_info, overlay_img_path, png_bytes, gradcam_img
 
 try:
-    raw_original, mask, metrics, pred_info, cls_info, overlay_img_path, png_bytes = run_dynamic_pipeline(image_source)
+    raw_original, mask, metrics, pred_info, cls_info, overlay_img_path, png_bytes, gradcam_img = run_dynamic_pipeline(image_source)
 except Exception as e:
     st.error(f"Error processing image: {e}")
     st.stop()
+
+# Store scan result in session state for patient record saving
+st.session_state["scan_result"] = {"metrics": metrics, "cls_info": cls_info}
+
+# Resolve confidence label (Task 8.1)
+display_label, is_low_confidence = resolve_tumor_type_label(
+    cls_info["tumor_type"],
+    cls_info["confidence"],
+    pred_info["is_valid_mri"],
+    pred_info["tumor_detected"]
+)
 
 # Handle Invalid Non-MRI Input Warning Banner
 if not pred_info["is_valid_mri"]:
@@ -268,6 +311,49 @@ st.sidebar.download_button(
     mime="image/png"
 )
 
+# Task 8.2 — Patient Record System sidebar sections
+st.sidebar.markdown("---")
+st.sidebar.subheader("🏥 Patient Record System")
+patient_id_input = st.sidebar.text_input("Patient ID", key="patient_id")
+patient_name_input = st.sidebar.text_input("Patient Name", key="patient_name")
+
+# Save Record button — disabled if no scan result in session state
+scan_done = "scan_result" in st.session_state
+if st.sidebar.button("💾 Save Record", disabled=not scan_done, help="Run inference first to enable"):
+    err = validate_patient_fields(patient_id_input, patient_name_input)
+    if err:
+        st.sidebar.error(err)
+    else:
+        try:
+            insert_patient_record(
+                patient_id_input,
+                patient_name_input,
+                st.session_state["scan_result"]["metrics"],
+                st.session_state["scan_result"]["cls_info"]
+            )
+            st.sidebar.success("Record saved!")
+        except Exception as e:
+            st.sidebar.error(f"Failed to save: {e}")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("📋 View Patient History")
+history_pid = st.sidebar.text_input("Patient ID to lookup", key="history_pid")
+if st.sidebar.button("🔍 Load History"):
+    st.session_state["show_history"] = history_pid
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("⚠️ Danger Zone")
+if st.sidebar.button("🗑️ Clear All Records"):
+    st.session_state["confirm_clear"] = True
+if st.session_state.get("confirm_clear"):
+    st.sidebar.warning("This will delete ALL patient records. Are you sure?")
+    if st.sidebar.button("✅ Confirm Delete"):
+        delete_all_records()
+        st.session_state["confirm_clear"] = False
+        st.sidebar.success("All records deleted.")
+    if st.sidebar.button("❌ Cancel"):
+        st.session_state["confirm_clear"] = False
+
 # 4. Results Metrics Cards
 st.subheader("📊 Quantitative Clinical & Classification Metrics")
 
@@ -284,11 +370,17 @@ with card_col1:
     st.markdown(f"**Tumor Status**<br>{status_html}", unsafe_allow_html=True)
 
 with card_col2:
-    st.metric(
-        label="Tumor Type",
-        value=metrics['tumor_subtype_label'],
-        delta="PyTorch CNN Classifier"
-    )
+    if is_low_confidence:
+        st.markdown(
+            f"**Tumor Type**<br><span class='status-badge-lowconf'>{LOW_CONFIDENCE_WARNING_TEXT}</span>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.metric(
+            label="Tumor Type",
+            value=display_label,
+            delta="PyTorch CNN Classifier"
+        )
 
 with card_col3:
     st.metric(
@@ -313,8 +405,19 @@ with card_col5:
 
 st.markdown("---")
 
-# 5. Visualizations
-col_left, col_right = st.columns(2)
+# Task 8.2 — Show patient history if requested
+if st.session_state.get("show_history"):
+    pid = st.session_state["show_history"]
+    records = query_patient_history(pid)
+    st.subheader(f"📋 Patient History: {pid}")
+    if records:
+        import pandas as pd
+        st.dataframe(pd.DataFrame(records))
+    else:
+        st.info(f"No records found for patient ID: {pid}")
+
+# 5. Visualizations — 3-column layout (Task 8.3)
+col_left, col_mid, col_right = st.columns(3)
 
 with col_left:
     st.subheader("📷 Input Image Matrix")
@@ -325,7 +428,7 @@ with col_left:
     st.pyplot(fig_raw, width="stretch")
     plt.close(fig_raw)
 
-with col_right:
+with col_mid:
     st.subheader("🎯 PyTorch UNet Predicted Mask Overlay")
     fig_segmented = render_segmentation_figure(
         raw_original, mask, alpha=overlay_alpha, show_overlay=show_overlay and pred_info["is_valid_mri"],
@@ -334,6 +437,20 @@ with col_right:
     )
     st.pyplot(fig_segmented, width="stretch")
     plt.close(fig_segmented)
+
+with col_right:
+    # Use the raw tumor_type for Grad-CAM title (not the warning text)
+    gradcam_title = get_gradcam_panel_title(
+        cls_info.get("tumor_type", "Unknown") if is_low_confidence else display_label,
+        is_low_confidence
+    )
+    st.subheader(gradcam_title)
+    if gradcam_img is not None:
+        st.image(gradcam_img, use_container_width=True)
+    elif not pred_info["is_valid_mri"]:
+        st.info("Grad-CAM not available — Invalid input")
+    else:
+        st.info("Grad-CAM not available — No tumor detected")
 
 # 6. Viva Presentation Diagnostics Panel
 st.markdown("---")

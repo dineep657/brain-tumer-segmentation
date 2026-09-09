@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Doctor Dashboard — BrainScan AI</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; }
+    nav { background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.08); padding:16px 32px; display:flex; justify-content:space-between; align-items:center; }
+    nav h1 { color:#38bdf8; font-size:1.3rem; }
+    .btn-logout { background:rgba(255,255,255,0.08); color:#94a3b8; border:none; padding:8px 18px; border-radius:8px; cursor:pointer; font-size:0.88rem; }
+    .container { max-width:1100px; margin:0 auto; padding:32px 24px; }
+    .tabs { display:flex; gap:4px; margin-bottom:28px; border-bottom:1px solid rgba(255,255,255,0.08); }
+    .tab { padding:10px 20px; cursor:pointer; color:#94a3b8; font-size:0.9rem; border-bottom:2px solid transparent; transition:all 0.2s; }
+    .tab.active { color:#38bdf8; border-bottom-color:#38bdf8; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px; }
+    .stat-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:20px; }
+    .stat-card .label { font-size:0.8rem; color:#94a3b8; }
+    .stat-card .value { font-size:1.8rem; font-weight:700; color:#38bdf8; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; padding:12px 16px; font-size:0.78rem; color:#94a3b8; text-transform:uppercase; border-bottom:1px solid rgba(255,255,255,0.08); }
+    td { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem; }
+    tr:hover td { background:rgba(255,255,255,0.03); }
+    .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600; }
+    .badge-tumor { background:rgba(239,68,68,0.15); color:#f87171; border:1px solid #ef4444; }
+    .badge-notumor { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
+    .badge-pending { background:rgba(234,179,8,0.15); color:#fbbf24; border:1px solid #f59e0b; }
+    .badge-reviewed { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
+    .btn-review { background:linear-gradient(135deg,#0ea5e9,#6366f1); color:white; border:none; border-radius:6px; padding:6px 14px; cursor:pointer; font-size:0.8rem; }
+    .empty { text-align:center; padding:48px; color:#475569; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+<nav>
+  <h1>🧠 BrainScan AI — Doctor Portal</h1>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span id="docName" style="color:#94a3b8;font-size:0.88rem;"></span>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat-card"><div class="label">Pending Reviews</div><div class="value" id="pendingCount">—</div></div>
+    <div class="stat-card"><div class="label">Reviewed Today</div><div class="value" id="reviewedToday">—</div></div>
+    <div class="stat-card"><div class="label">Total Reviewed</div><div class="value" id="totalReviewed">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('queue')">📋 Review Queue</div>
+    <div class="tab" onclick="showTab('history')">✅ My Reviews</div>
+  </div>
+
+  <div id="queueSection">
+    <table>
+      <thead>
+        <tr><th>Patient</th><th>Email</th><th>Upload Date</th><th>AI Result</th><th>Confidence</th><th></th></tr>
+      </thead>
+      <tbody id="queueBody"></tbody>
+    </table>
+    <div id="queueEmpty" class="empty hidden"><p>✅ No pending cases. All caught up!</p></div>
+  </div>
+
+  <div id="historySection" class="hidden">
+    <table>
+      <thead>
+        <tr><th>Patient</th><th>Upload Date</th><th>AI Result</th><th>Your Diagnosis</th><th>Reviewed On</th></tr>
+      </thead>
+      <tbody id="historyBody"></tbody>
+    </table>
+    <div id="historyEmpty" class="empty hidden"><p>No reviewed cases yet.</p></div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/';
+  document.getElementById('docName').textContent = 'Dr. ' + (localStorage.getItem('name') || '');
+
+  // Server-side role guard — blocks patients from accessing doctor pages
+  async function verifyDoctorRole() {
+    try {
+      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { localStorage.clear(); window.location.href = '/'; return; }
+      const user = await res.json();
+      if (user.role !== 'doctor') {
+        alert('Access denied. You do not have doctor privileges.');
+        localStorage.clear();
+        window.location.href = '/';
+        return;
+      }
+      localStorage.setItem('role', user.role);
+      localStorage.setItem('name', user.name);
+      document.getElementById('docName').textContent = 'Dr. ' + user.name;
+    } catch(e) { localStorage.clear(); window.location.href = '/'; }
+  }
+
+  function showTab(tab) {
+    document.getElementById('queueSection').classList.toggle('hidden', tab !== 'queue');
+    document.getElementById('historySection').classList.toggle('hidden', tab !== 'history');
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (i === 0 && tab === 'queue') || (i === 1 && tab === 'history'));
+    });
+    if (tab === 'history') loadHistory();
+  }
+
+  async function loadQueue() {
+    const res = await fetch('/api/doctor/queue', { headers: { Authorization: 'Bearer ' + token } });
+    if (res.status === 401) { logout(); return; }
+    const cases = await res.json();
+    document.getElementById('pendingCount').textContent = cases.length;
+
+    const tbody = document.getElementById('queueBody');
+    if (!cases.length) { document.getElementById('queueEmpty').classList.remove('hidden'); return; }
+
+    tbody.innerHTML = cases.map(c => `
+      <tr>
+        <td>${c.patient_name}</td>
+        <td style="color:#94a3b8">${c.patient_email}</td>
+        <td>${new Date(c.upload_time).toLocaleDateString()}</td>
+        <td>${c.tumor_detected
+          ? '<span class="badge badge-tumor">🔴 ' + (c.tumor_type||'Tumor') + '</span>'
+          : '<span class="badge badge-notumor">🟢 No Tumor</span>'}</td>
+        <td>${c.confidence !== null ? (c.confidence*100).toFixed(1)+'%' : '—'}</td>
+        <td><button class="btn-review" onclick="window.location='/doctor/review/${c.scan_id}'">Review</button></td>
+      </tr>
+    `).join('');
+  }
+
+  async function loadHistory() {
+    const res = await fetch('/api/doctor/history', { headers: { Authorization: 'Bearer ' + token } });
+    const cases = await res.json();
+    document.getElementById('totalReviewed').textContent = cases.length;
+    const today = new Date().toDateString();
+    document.getElementById('reviewedToday').textContent = cases.filter(c => new Date(c.reviewed_at).toDateString() === today).length;
+
+    const tbody = document.getElementById('historyBody');
+    if (!cases.length) { document.getElementById('historyEmpty').classList.remove('hidden'); return; }
+
+    tbody.innerHTML = cases.map(c => `
+      <tr>
+        <td>${c.patient_name}</td>
+        <td>${new Date(c.upload_time).toLocaleDateString()}</td>
+        <td>${c.tumor_type || '—'}</td>
+        <td><strong>${c.diagnosis}</strong></td>
+        <td style="color:#94a3b8">${new Date(c.reviewed_at).toLocaleDateString()}</td>
+      </tr>
+    `).join('');
+  }
+
+  function logout() { localStorage.clear(); window.location.href = '/'; }
+  verifyDoctorRole().then(() => loadQueue());
+</script>
+</body>
+</html>

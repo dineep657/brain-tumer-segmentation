@@ -5,3 +5,5 @@ nibabel
 numpy
 matplotlib
 fpdf2
+pytest
+hypothesis

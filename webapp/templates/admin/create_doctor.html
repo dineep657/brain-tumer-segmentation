@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Create Doctor Account</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Segoe UI',sans-serif;
+      background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+    }
+    .card {
+      background:rgba(255,255,255,0.05);
+      backdrop-filter:blur(12px);
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:20px; padding:48px 40px;
+      width:440px; color:#e2e8f0;
+    }
+    .header { text-align:center; margin-bottom:32px; }
+    .header h1 { font-size:1.6rem; color:#38bdf8; }
+    .header p { font-size:0.85rem; color:#94a3b8; margin-top:6px; }
+    .admin-badge {
+      display:inline-block; background:rgba(239,68,68,0.15);
+      color:#f87171; border:1px solid #ef4444;
+      padding:3px 12px; border-radius:20px; font-size:0.75rem;
+      font-weight:700; margin-bottom:8px;
+    }
+    .form-group { margin-bottom:18px; }
+    label { display:block; font-size:0.8rem; color:#94a3b8; margin-bottom:6px; }
+    input {
+      width:100%; padding:11px 14px;
+      background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:8px; color:#e2e8f0; font-size:0.95rem;
+      outline:none; transition:border 0.2s;
+    }
+    input:focus { border-color:#38bdf8; }
+    .btn {
+      width:100%; padding:13px;
+      background:linear-gradient(135deg,#0ea5e9,#6366f1);
+      border:none; border-radius:8px; color:white;
+      font-size:1rem; font-weight:600; cursor:pointer;
+      transition:opacity 0.2s; margin-top:6px;
+    }
+    .btn:hover { opacity:0.9; }
+    .msg { margin-top:14px; text-align:center; font-size:0.88rem; padding:10px; border-radius:8px; display:none; }
+    .msg.success { background:rgba(34,197,94,0.1); color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+    .msg.error   { background:rgba(239,68,68,0.1);  color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+    .divider { border:none; border-top:1px solid rgba(255,255,255,0.08); margin:24px 0; }
+    .back-link { text-align:center; margin-top:20px; }
+    .back-link a { color:#94a3b8; font-size:0.85rem; text-decoration:none; }
+    .back-link a:hover { color:#38bdf8; }
+    .doctor-list { margin-top:28px; }
+    .doctor-list h3 { font-size:0.85rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; }
+    .doctor-item {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:10px 14px; background:rgba(255,255,255,0.04);
+      border:1px solid rgba(255,255,255,0.07); border-radius:8px;
+      margin-bottom:8px; font-size:0.88rem;
+    }
+    .doctor-item .name { color:#e2e8f0; font-weight:600; }
+    .doctor-item .email { color:#64748b; font-size:0.8rem; }
+    .badge-doctor {
+      background:rgba(56,189,248,0.1); color:#38bdf8;
+      border:1px solid rgba(56,189,248,0.3);
+      padding:2px 10px; border-radius:20px; font-size:0.72rem; font-weight:700;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="admin-badge">🔐 ADMIN PANEL</div>
+    <h1>🧠 BrainScan AI</h1>
+    <p>Create Doctor Accounts</p>
+  </div>
+
+  <div class="form-group">
+    <label>Admin Secret Key</label>
+    <input type="password" id="adminSecret" placeholder="Enter admin secret..." />
+  </div>
+
+  <hr class="divider"/>
+
+  <div class="form-group">
+    <label>Doctor's Full Name</label>
+    <input type="text" id="docName" placeholder="e.g. Dr. Sarah Johnson" />
+  </div>
+  <div class="form-group">
+    <label>Email Address</label>
+    <input type="email" id="docEmail" placeholder="doctor@hospital.com" />
+  </div>
+  <div class="form-group">
+    <label>Password</label>
+    <input type="password" id="docPassword" placeholder="Set a secure password" />
+  </div>
+
+  <button class="btn" onclick="createDoctor()">➕ Create Doctor Account</button>
+  <div class="msg" id="msg"></div>
+
+  <!-- Existing doctors list -->
+  <div class="doctor-list" id="doctorList" style="display:none">
+    <h3>👨‍⚕️ Existing Doctors</h3>
+    <div id="doctorItems"></div>
+  </div>
+
+  <div class="back-link">
+    <a href="/">← Back to Login</a>
+  </div>
+</div>
+
+<script>
+  async function createDoctor() {
+    const adminSecret = document.getElementById('adminSecret').value.trim();
+    const name        = document.getElementById('docName').value.trim();
+    const email       = document.getElementById('docEmail').value.trim();
+    const password    = document.getElementById('docPassword').value;
+    const msg         = document.getElementById('msg');
+
+    if (!adminSecret || !name || !email || !password) {
+      showMsg('error', 'All fields are required.');
+      return;
+    }
+    if (password.length < 6) {
+      showMsg('error', 'Password must be at least 6 characters.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/admin/create-doctor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, admin_secret: adminSecret })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showMsg('success', `✅ Doctor account created for ${email}`);
+        document.getElementById('docName').value = '';
+        document.getElementById('docEmail').value = '';
+        document.getElementById('docPassword').value = '';
+        loadDoctors(adminSecret);
+      } else {
+        showMsg('error', data.detail || 'Failed to create account.');
+      }
+    } catch(e) {
+      showMsg('error', 'Connection error. Is the server running?');
+    }
+  }
+
+  async function loadDoctors(secret) {
+    try {
+      const res = await fetch('/api/auth/admin/list-doctors?admin_secret=' + encodeURIComponent(secret));
+      if (!res.ok) return;
+      const doctors = await res.json();
+
+      if (doctors.length === 0) return;
+
+      document.getElementById('doctorList').style.display = 'block';
+      document.getElementById('doctorItems').innerHTML = doctors.map(d => `
+        <div class="doctor-item">
+          <div>
+            <div class="name">${d.name}</div>
+            <div class="email">${d.email}</div>
+          </div>
+          <span class="badge-doctor">Doctor</span>
+        </div>
+      `).join('');
+    } catch(e) {}
+  }
+
+  function showMsg(type, text) {
+    const msg = document.getElementById('msg');
+    msg.className = 'msg ' + type;
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 5000);
+  }
+</script>
+</body>
+</html>
