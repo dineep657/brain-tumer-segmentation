@@ -2,160 +2,161 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Brain Tumor Detection — Login</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .card {
-      background: rgba(255,255,255,0.05);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 20px;
-      padding: 48px 40px;
-      width: 420px;
-      color: #e2e8f0;
-    }
-    .logo { text-align: center; margin-bottom: 32px; }
-    .logo h1 { font-size: 1.8rem; color: #38bdf8; }
-    .logo p { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
-    .tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 28px; }
-    .tab {
-      flex: 1; padding: 10px; text-align: center; cursor: pointer;
-      color: #94a3b8; font-size: 0.9rem; transition: all 0.2s;
-    }
-    .tab.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
-    .form-group { margin-bottom: 18px; }
-    label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 6px; }
-    input, select {
-      width: 100%; padding: 10px 14px;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 8px; color: #e2e8f0; font-size: 0.95rem;
-      outline: none; transition: border 0.2s;
-    }
-    input:focus, select:focus { border-color: #38bdf8; }
-    select option { background: #1e293b; }
-    .btn {
-      width: 100%; padding: 12px;
-      background: linear-gradient(135deg, #0ea5e9, #6366f1);
-      border: none; border-radius: 8px; color: white;
-      font-size: 1rem; font-weight: 600; cursor: pointer;
-      transition: opacity 0.2s; margin-top: 6px;
-    }
-    .btn:hover { opacity: 0.9; }
-    .error { color: #f87171; font-size: 0.85rem; margin-top: 12px; text-align: center; }
-    .success { color: #4ade80; font-size: 0.85rem; margin-top: 12px; text-align: center; }
-    .hidden { display: none; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — BrainScan AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-<div class="card">
-  <div class="logo">
-    <h1>🧠 BrainScan AI</h1>
-    <p>Brain Tumor Detection & Review Platform</p>
+  <div class="auth-page">
+    <section class="auth-visual">
+      <a class="brand" href="/">
+        <div class="brand__mark">BS</div>
+        <div>
+          <div class="brand__name">BrainScan AI</div>
+          <div class="brand__tag">Medical imaging platform</div>
+        </div>
+      </a>
+      <div class="auth-visual__quote">
+        <h1>Secure access for patients, verified doctors, and administrators.</h1>
+        <p>
+          Public registration always creates a patient account. Doctor privileges are
+          granted only after administrator verification.
+        </p>
+        <ul class="feature-list">
+          <li><span class="dot">✓</span><span>JWT authentication with server-side role checks</span></li>
+          <li><span class="dot">✓</span><span>AI segmentation results with clinical disclaimer</span></li>
+          <li><span class="dot">✓</span><span>Doctor decisions recorded in an audit trail</span></li>
+        </ul>
+      </div>
+      <p style="color:var(--text-muted);font-size:0.82rem;">
+        Need clinician access? <a href="/apply-doctor">Request doctor verification</a>
+      </p>
+    </section>
+
+    <section class="auth-panel">
+      <div class="auth-card">
+        <h2>Welcome back</h2>
+        <p class="subtitle">Sign in to continue to your portal.</p>
+
+        <div class="auth-tabs">
+          <button type="button" id="tabLogin" class="is-active" onclick="showTab('login')">Sign in</button>
+          <button type="button" id="tabRegister" onclick="showTab('register')">Register</button>
+        </div>
+
+        <div id="loginForm">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input class="form-input" type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input class="form-input" type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <button class="btn btn--primary btn--block btn--lg" onclick="doLogin()">Sign in</button>
+          <div id="loginMsg"></div>
+        </div>
+
+        <div id="registerForm" class="hidden">
+          <div class="form-group">
+            <label for="regName">Full name</label>
+            <input class="form-input" type="text" id="regName" placeholder="Your full name" />
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email</label>
+            <input class="form-input" type="email" id="regEmail" placeholder="you@example.com" />
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Password</label>
+            <input class="form-input" type="password" id="regPassword" placeholder="Minimum 6 characters" />
+          </div>
+          <p class="form-hint" style="margin-bottom:14px;">
+            Registration creates a <strong>patient</strong> account only. Doctor roles cannot be self-assigned.
+          </p>
+          <button class="btn btn--primary btn--block btn--lg" onclick="doRegister()">Create patient account</button>
+          <div id="registerMsg"></div>
+        </div>
+
+        <p style="margin-top:18px;text-align:center;font-size:0.84rem;color:var(--text-muted);">
+          <a href="/">← Back to home</a>
+          &nbsp;·&nbsp;
+          <a href="/apply-doctor">Apply as doctor</a>
+        </p>
+      </div>
+    </section>
   </div>
 
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('login')">Login</div>
-    <div class="tab" onclick="showTab('register')">Register</div>
-  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    function showTab(tab) {
+      document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('tabLogin').classList.toggle('is-active', tab === 'login');
+      document.getElementById('tabRegister').classList.toggle('is-active', tab === 'register');
+    }
 
-  <!-- Login Form -->
-  <div id="loginForm">
-    <div class="form-group">
-      <label>Email Address</label>
-      <input type="email" id="loginEmail" placeholder="you@example.com" />
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" />
-    </div>
-    <button class="btn" onclick="doLogin()">Sign In</button>
-    <div id="loginMsg"></div>
-  </div>
+    if (location.hash === '#register') showTab('register');
 
-  <!-- Register Form -->
-  <div id="registerForm" class="hidden">
-    <div class="form-group">
-      <label>Full Name</label>
-      <input type="text" id="regName" placeholder="Your full name" />
-    </div>
-    <div class="form-group">
-      <label>Email Address</label>
-      <input type="email" id="regEmail" placeholder="you@example.com" />
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="regPassword" placeholder="Min 6 characters" />
-    </div>
-    <p style="font-size:0.78rem;color:#64748b;margin-bottom:12px;">
-      ℹ️ Public registration creates a <strong style="color:#94a3b8">Patient</strong> account.
-      Doctor accounts are set up by the clinic administrator.
-    </p>
-    <button class="btn" onclick="doRegister()">Create Account</button>
-    <div id="registerMsg"></div>
-  </div>
-</div>
+    async function doLogin() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const msg = document.getElementById('loginMsg');
+      msg.className = '';
+      msg.textContent = '';
+      try {
+        const { res, data } = await BrainScan.api('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        if (!res.ok) {
+          msg.className = 'alert alert--error';
+          msg.textContent = data.detail || 'Login failed';
+          return;
+        }
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('name', data.name);
+        localStorage.setItem('verification_status', data.verification_status || 'none');
+        BrainScan.redirectAfterLogin(data.role, data.verification_status);
+      } catch (e) {
+        msg.className = 'alert alert--error';
+        msg.textContent = 'Connection error. Is the server running?';
+      }
+    }
 
-<script>
-  function showTab(tab) {
-    document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
-    document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
-    document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+    async function doRegister() {
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const msg = document.getElementById('registerMsg');
+      if (password.length < 6) {
+        msg.className = 'alert alert--error';
+        msg.textContent = 'Password must be at least 6 characters.';
+        return;
+      }
+      try {
+        const { res, data } = await BrainScan.api('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        if (!res.ok) {
+          msg.className = 'alert alert--error';
+          msg.textContent = data.detail || 'Registration failed';
+          return;
+        }
+        msg.className = 'alert alert--success';
+        msg.textContent = data.message;
+        setTimeout(() => showTab('login'), 1200);
+      } catch (e) {
+        msg.className = 'alert alert--error';
+        msg.textContent = 'Connection error.';
+      }
+    }
+
+    document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
     });
-  }
-
-  async function doLogin() {
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-    const msg = document.getElementById('loginMsg');
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({email, password})
-      });
-      const data = await res.json();
-      if (!res.ok) { msg.className = 'error'; msg.textContent = data.detail; return; }
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('role', data.role);
-      localStorage.setItem('name', data.name);
-      if (data.role === 'doctor') window.location.href = '/doctor/dashboard';
-      else if (data.role === 'admin') window.location.href = '/admin/dashboard';
-      else window.location.href = '/patient/dashboard';
-    } catch(e) {
-      msg.className = 'error'; msg.textContent = 'Connection error.';
-    }
-  }
-
-  async function doRegister() {
-    const name = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const password = document.getElementById('regPassword').value;
-    const msg = document.getElementById('registerMsg');
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({name, email, password})
-      });
-      const data = await res.json();
-      if (!res.ok) { msg.className = 'error'; msg.textContent = data.detail; return; }
-      msg.className = 'success'; msg.textContent = data.message;
-      setTimeout(() => showTab('login'), 1500);
-    } catch(e) {
-      msg.className = 'error'; msg.textContent = 'Connection error.';
-    }
-  }
-</script>
+  </script>
 </body>
 </html>

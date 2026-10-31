@@ -1,143 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Patient Dashboard — BrainScan AI</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; }
-    nav {
-      background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.08);
-      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
-    }
-    nav h1 { color:#38bdf8; font-size:1.3rem; }
-    nav div { display:flex; align-items:center; gap:16px; }
-    .btn-nav {
-      padding:8px 18px; border-radius:8px; border:none; cursor:pointer; font-size:0.88rem;
-    }
-    .btn-upload { background:linear-gradient(135deg,#0ea5e9,#6366f1); color:white; }
-    .btn-logout { background:rgba(255,255,255,0.08); color:#94a3b8; }
-    .container { max-width:960px; margin:0 auto; padding:32px 24px; }
-    .welcome { margin-bottom:28px; }
-    .welcome h2 { font-size:1.5rem; color:#f8fafc; }
-    .welcome p { color:#94a3b8; margin-top:4px; font-size:0.9rem; }
-    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px; }
-    .stat-card {
-      background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
-      border-radius:12px; padding:20px;
-    }
-    .stat-card .label { font-size:0.8rem; color:#94a3b8; margin-bottom:6px; }
-    .stat-card .value { font-size:1.8rem; font-weight:700; color:#38bdf8; }
-    table { width:100%; border-collapse:collapse; }
-    th { text-align:left; padding:12px 16px; font-size:0.78rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid rgba(255,255,255,0.08); }
-    td { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem; }
-    tr:hover td { background:rgba(255,255,255,0.03); }
-    .badge {
-      display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600;
-    }
-    .badge-pending { background:rgba(234,179,8,0.15); color:#fbbf24; border:1px solid #f59e0b; }
-    .badge-reviewed { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
-    .badge-tumor { background:rgba(239,68,68,0.15); color:#f87171; border:1px solid #ef4444; }
-    .badge-notumor { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid #22c55e; }
-    .btn-view { background:rgba(56,189,248,0.1); color:#38bdf8; border:1px solid #38bdf8; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:0.8rem; }
-    .empty { text-align:center; padding:48px; color:#475569; }
-    .empty p { margin-top:8px; font-size:0.9rem; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patient dashboard — BrainScan AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-<nav>
-  <h1>🧠 BrainScan AI</h1>
-  <div>
-    <span id="userName" style="color:#94a3b8;font-size:0.88rem;"></span>
-    <button class="btn-nav btn-upload" onclick="window.location='/patient/upload'">+ Upload Scan</button>
-    <button class="btn-nav btn-logout" onclick="logout()">Logout</button>
-  </div>
-</nav>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand__mark">BS</div>
+        <div>
+          <div class="brand__name">BrainScan AI</div>
+          <div class="brand__tag">Patient portal</div>
+        </div>
+      </div>
+      <nav class="sidebar__nav">
+        <a class="sidebar__link is-active" href="/patient/dashboard">Dashboard</a>
+        <a class="sidebar__link" href="/patient/upload">Upload MRI</a>
+      </nav>
+      <div class="sidebar__footer">
+        <div class="sidebar__user">
+          <div class="sidebar__user-name" data-user-name></div>
+          <div class="sidebar__user-role" data-user-role>Patient</div>
+        </div>
+        <button class="btn btn--ghost btn--block" style="color:#9bb0be;justify-content:flex-start;" onclick="logout()">Sign out</button>
+      </div>
+    </aside>
 
-<div class="container">
-  <div class="welcome">
-    <h2>Your Dashboard</h2>
-    <p>View your MRI scan history and doctor reviews.</p>
-  </div>
+    <div class="main-area">
+      <header class="main-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="mobile-nav-toggle" id="sidebarToggle" aria-label="Open menu">☰</button>
+          <h1>Patient dashboard</h1>
+        </div>
+        <a class="btn btn--primary" href="/patient/upload">Upload MRI</a>
+      </header>
 
-  <div class="stats">
-    <div class="stat-card"><div class="label">Total Scans</div><div class="value" id="totalScans">—</div></div>
-    <div class="stat-card"><div class="label">Pending Review</div><div class="value" id="pendingCount">—</div></div>
-    <div class="stat-card"><div class="label">Reviewed</div><div class="value" id="reviewedCount">—</div></div>
-  </div>
+      <main class="page">
+        <div class="page-intro">
+          <h2>Your imaging history</h2>
+          <p>Track MRI uploads, AI findings, and physician review status in one place.</p>
+        </div>
 
-  <div id="scanTable">
-    <table>
-      <thead>
-        <tr>
-          <th>File</th><th>Upload Date</th><th>AI Result</th><th>Confidence</th><th>Status</th><th>Doctor's Verdict</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="scanBody"></tbody>
-    </table>
-    <div id="emptyMsg" class="empty hidden">
-      <p>🧬 No scans uploaded yet.</p>
-      <p>Click <strong>+ Upload Scan</strong> to get started.</p>
+        <div id="pendingNotice" class="alert alert--warning hidden" style="margin-bottom:18px;"></div>
+
+        <div class="stat-grid">
+          <div class="stat-card"><div class="label">Total scans</div><div class="value" id="totalScans">—</div></div>
+          <div class="stat-card"><div class="label">Pending review</div><div class="value" id="pendingCount">—</div></div>
+          <div class="stat-card"><div class="label">Further review</div><div class="value" id="furtherCount">—</div></div>
+          <div class="stat-card"><div class="label">Completed</div><div class="value" id="reviewedCount">—</div></div>
+        </div>
+
+        <div class="disclaimer" style="margin-bottom:18px;">
+          <strong>Important:</strong> AI predictions are not confirmed medical diagnoses.
+          Results require review by a qualified clinician before clinical decisions are made.
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Uploaded</th>
+                <th>AI result</th>
+                <th>Confidence</th>
+                <th>Status</th>
+                <th>Doctor feedback</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="scanBody"></tbody>
+          </table>
+          <div id="emptyMsg" class="empty-state hidden">
+            <div class="empty-state__icon">MRI</div>
+            <h3>No scans yet</h3>
+            <p>Upload your first brain MRI to begin AI analysis and doctor review.</p>
+            <a class="btn btn--primary" style="margin-top:14px;" href="/patient/upload">Upload MRI</a>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
-</div>
 
-<script>
-  const token = localStorage.getItem('token');
-  if (!token) window.location.href = '/';
-  document.getElementById('userName').textContent = localStorage.getItem('name') || '';
+  <script src="/static/app.js"></script>
+  <script>
+    BrainScan.wireSidebar();
 
-  // Server-side role verification — prevents patients accessing doctor routes
-  async function verifyRole() {
-    try {
-      const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
-      if (!res.ok) { localStorage.clear(); window.location.href = '/'; return; }
-      const user = await res.json();
-      if (user.role !== 'patient') { localStorage.clear(); window.location.href = '/'; return; }
-      // Update localStorage with server-verified values
-      localStorage.setItem('role', user.role);
-      localStorage.setItem('name', user.name);
-      document.getElementById('userName').textContent = user.name;
-    } catch(e) { localStorage.clear(); window.location.href = '/'; }
-  }
+    (async () => {
+      const user = await BrainScan.requireAuth(['patient']);
+      if (!user) return;
+      BrainScan.fillUserChrome(user);
 
-  async function loadScans() {
-    const res = await fetch('/api/patient/scans', { headers: { Authorization: 'Bearer ' + token } });
-    if (res.status === 401) { logout(); return; }
-    const scans = await res.json();
+      if (user.verification_status === 'pending') {
+        const el = document.getElementById('pendingNotice');
+        el.classList.remove('hidden');
+        el.innerHTML = 'Your <strong>doctor verification</strong> request is pending administrator review. You still have patient access meanwhile. <a href="/doctor/pending">View application status</a>';
+      }
 
-    document.getElementById('totalScans').textContent = scans.length;
-    document.getElementById('pendingCount').textContent = scans.filter(s => s.status === 'pending').length;
-    document.getElementById('reviewedCount').textContent = scans.filter(s => s.status === 'reviewed').length;
+      await loadScans();
+    })();
 
-    const tbody = document.getElementById('scanBody');
-    if (!scans.length) { document.getElementById('emptyMsg').classList.remove('hidden'); return; }
+    async function loadScans() {
+      const { res, data: scans } = await BrainScan.api('/api/patient/scans', {
+        headers: BrainScan.authHeaders(false)
+      });
+      if (res.status === 401) { logout(); return; }
+      if (!res.ok) return;
 
-    tbody.innerHTML = scans.map(s => `
-      <tr>
-        <td>${s.filename}</td>
-        <td>${new Date(s.upload_time).toLocaleDateString()}</td>
-        <td>${s.tumor_detected !== null
-          ? (s.tumor_detected
-            ? '<span class="badge badge-tumor">🔴 ' + (s.tumor_type||'Tumor') + '</span>'
-            : '<span class="badge badge-notumor">🟢 No Tumor</span>')
-          : '—'}</td>
-        <td>${s.confidence !== null ? (s.confidence * 100).toFixed(1) + '%' : '—'}</td>
-        <td><span class="badge badge-${s.status}">${s.status === 'pending' ? '⏳ Pending' : '✅ Reviewed'}</span></td>
-        <td>${s.diagnosis ? '<strong>' + s.diagnosis + '</strong>' : '<span style="color:#475569">Awaiting review</span>'}</td>
-        <td><button class="btn-view" onclick="window.location='/patient/upload?scan_id=${s.id}'">View</button></td>
-      </tr>
-    `).join('');
-  }
+      document.getElementById('totalScans').textContent = scans.length;
+      document.getElementById('pendingCount').textContent = scans.filter(s => s.status === 'pending').length;
+      document.getElementById('furtherCount').textContent = scans.filter(s => s.status === 'further_review').length;
+      document.getElementById('reviewedCount').textContent = scans.filter(s => s.status === 'approved' || s.status === 'rejected').length;
 
-  function logout() {
-    localStorage.clear();
-    window.location.href = '/';
-  }
+      const tbody = document.getElementById('scanBody');
+      if (!scans.length) {
+        document.getElementById('emptyMsg').classList.remove('hidden');
+        tbody.innerHTML = '';
+        return;
+      }
 
-  verifyRole();
-  loadScans();
-</script>
+      tbody.innerHTML = scans.map(s => {
+        const ai = s.tumor_detected == null
+          ? '—'
+          : (s.tumor_detected
+            ? `<span class="badge badge--tumor">${BrainScan.escapeHtml(s.tumor_type || 'Tumor')}</span>`
+            : `<span class="badge badge--notumor">No tumor</span>`);
+        const feedback = s.diagnosis
+          ? `<strong>${BrainScan.escapeHtml(s.diagnosis)}</strong>${s.doctor_name ? `<div style="color:var(--text-muted);font-size:0.78rem;margin-top:2px;">Dr. ${BrainScan.escapeHtml(s.doctor_name)}</div>` : ''}`
+          : `<span style="color:var(--text-muted)">Awaiting review</span>`;
+        const reviewed = s.status === 'approved' || s.status === 'rejected' || s.status === 'further_review';
+        const reportBtn = reviewed
+          ? `<button class="btn btn--primary btn--sm" onclick="downloadReport(${s.id})">Download report</button>`
+          : '';
+        return `
+          <tr>
+            <td>${BrainScan.escapeHtml(s.filename)}</td>
+            <td>${BrainScan.formatDate(s.upload_time)}</td>
+            <td>${ai}</td>
+            <td>${BrainScan.formatPct(s.confidence)}</td>
+            <td><span class="${BrainScan.badgeClass(s.status)}">${BrainScan.statusLabel(s.status)}</span></td>
+            <td>${feedback}</td>
+            <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap;">
+              <a class="btn btn--secondary btn--sm" href="/patient/upload?scan_id=${s.id}">View</a>
+              ${reportBtn}
+            </td>
+          </tr>`;
+      }).join('');
+    }
+  </script>
 </body>
 </html>

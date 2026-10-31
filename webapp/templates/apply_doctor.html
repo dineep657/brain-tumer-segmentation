@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doctor verification — BrainScan AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <div class="brand__mark">BS</div>
+      <div>
+        <div class="brand__name">BrainScan AI</div>
+        <div class="brand__tag">Doctor verification</div>
+      </div>
+    </a>
+    <div class="topbar__actions">
+      <a class="btn btn--secondary" href="/login">Sign in</a>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:760px;padding-top:36px;">
+    <div class="page-intro">
+      <h2>Request doctor access</h2>
+      <p>
+        Submit your professional details for administrator review. Your account will remain
+        a patient account with <strong>pending</strong> status until approved. A registration
+        number alone is not treated as proof of qualification.
+      </p>
+    </div>
+
+    <div class="disclaimer" style="margin-bottom:18px;">
+      Do not attempt to self-assign a doctor role. Only an administrator can grant verified
+      clinician privileges after reviewing your application.
+    </div>
+
+    <div class="card">
+      <div class="card__body">
+        <form id="applyForm" onsubmit="submitApplication(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fullName">Full name</label>
+              <input class="form-input" id="fullName" required />
+            </div>
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input class="form-input" type="email" id="email" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="password">Account password</label>
+            <input class="form-input" type="password" id="password" minlength="6" required />
+            <p class="form-hint">Creates a new account, or confirms an existing patient account.</p>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="regNo">Medical registration number</label>
+              <input class="form-input" id="regNo" required />
+            </div>
+            <div class="form-group">
+              <label for="phone">Contact phone</label>
+              <input class="form-input" id="phone" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="qualification">Medical qualification</label>
+            <input class="form-input" id="qualification" placeholder="e.g. MD Radiology, FRCR" required />
+          </div>
+          <div class="form-group">
+            <label for="hospital">Hospital / institution</label>
+            <input class="form-input" id="hospital" required />
+          </div>
+          <div class="form-group">
+            <label for="document">Verification document (optional PDF/JPG/PNG)</label>
+            <input class="form-input" type="file" id="document" accept=".pdf,.png,.jpg,.jpeg" />
+          </div>
+          <button class="btn btn--primary btn--lg" type="submit">Submit for admin review</button>
+          <div id="msg"></div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    async function submitApplication(e) {
+      e.preventDefault();
+      const msg = document.getElementById('msg');
+      msg.className = '';
+      msg.textContent = '';
+
+      const fd = new FormData();
+      fd.append('full_name', document.getElementById('fullName').value.trim());
+      fd.append('email', document.getElementById('email').value.trim());
+      fd.append('password', document.getElementById('password').value);
+      fd.append('medical_registration_number', document.getElementById('regNo').value.trim());
+      fd.append('qualification', document.getElementById('qualification').value.trim());
+      fd.append('hospital', document.getElementById('hospital').value.trim());
+      fd.append('contact_phone', document.getElementById('phone').value.trim());
+      const file = document.getElementById('document').files[0];
+      if (file) fd.append('document', file);
+
+      try {
+        const res = await fetch('/api/auth/apply-doctor', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          msg.className = 'alert alert--error';
+          msg.textContent = data.detail || 'Submission failed';
+          return;
+        }
+        msg.className = 'alert alert--success';
+        msg.textContent = data.message + ' You can sign in to track status.';
+        document.getElementById('applyForm').reset();
+      } catch (err) {
+        msg.className = 'alert alert--error';
+        msg.textContent = 'Connection error.';
+      }
+    }
+  </script>
+</body>
+</html>

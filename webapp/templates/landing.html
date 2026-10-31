@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrainScan AI — Medical Imaging Platform</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <div class="brand__mark">BS</div>
+      <div>
+        <div class="brand__name">BrainScan AI</div>
+        <div class="brand__tag">Clinical imaging assistant</div>
+      </div>
+    </a>
+    <div class="topbar__actions">
+      <a class="btn btn--ghost" href="/apply-doctor">Doctor verification</a>
+      <a class="btn btn--secondary" href="/login">Sign in</a>
+      <a class="btn btn--primary" href="/login#register">Create account</a>
+    </div>
+  </header>
+
+  <section class="landing-hero">
+    <div>
+      <div class="badge badge--info">Research-assisted MRI workflow</div>
+      <h1>BrainScan AI</h1>
+      <p class="lead">
+        A professional platform for uploading brain MRI scans, reviewing AI segmentation
+        and classification results, and completing verified physician review —
+        with clear role-based security for patients, doctors, and administrators.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn--primary btn--lg" href="/login#register">Get started as a patient</a>
+        <a class="btn btn--secondary btn--lg" href="/login">Sign in to your portal</a>
+      </div>
+      <p style="margin-top:18px;font-size:0.84rem;color:var(--text-muted);max-width:52ch;">
+        AI predictions are decision-support tools only. They are not confirmed medical
+        diagnoses and require review by a qualified clinician.
+      </p>
+    </div>
+
+    <div class="hero-visual">
+      <div class="hero-panel">
+        <h3>Sample clinical workflow</h3>
+        <div class="hero-metric"><span>Upload MRI</span><span>Patient</span></div>
+        <div class="hero-metric"><span>Segmentation + classification</span><span>AI pipeline</span></div>
+        <div class="hero-metric"><span>Physician decision</span><span>Verified doctor</span></div>
+        <div class="hero-metric"><span>Patient visibility</span><span>Approved feedback</span></div>
+      </div>
+      <div class="hero-panel">
+        <h3>Security model</h3>
+        <div class="hero-metric"><span>Patient self-registration</span><span>Allowed</span></div>
+        <div class="hero-metric"><span>Doctor role self-assignment</span><span>Blocked</span></div>
+        <div class="hero-metric"><span>Admin verification</span><span>Required</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="landing-section">
+    <h2 class="section-title">Built for clinical clarity</h2>
+    <p class="section-sub">One coherent experience across upload, AI review, and physician sign-off.</p>
+    <div class="grid-3">
+      <div class="feature-card">
+        <div class="icon">01</div>
+        <h3>Patient imaging portal</h3>
+        <p>Upload MRI images, track review status, and view segmentation overlays with confidence scores.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">02</div>
+        <h3>Verified doctor review</h3>
+        <p>Only administrator-approved clinicians can approve, reject, or request further review with an audit trail.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">03</div>
+        <h3>Admin governance</h3>
+        <p>Review doctor applications, provision accounts, and monitor platform activity from a secure dashboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--border);padding:28px 56px;color:var(--text-muted);font-size:0.84rem;">
+    BrainScan AI — academic / research demonstration platform. Not a regulated diagnostic device.
+  </footer>
+</body>
+</html>

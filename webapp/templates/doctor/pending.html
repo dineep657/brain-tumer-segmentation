@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verification pending — BrainScan AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <div class="brand__mark">BS</div>
+      <div>
+        <div class="brand__name">BrainScan AI</div>
+        <div class="brand__tag">Doctor verification</div>
+      </div>
+    </a>
+    <div class="topbar__actions">
+      <button class="btn btn--ghost" onclick="logout()">Sign out</button>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:680px;padding-top:48px;">
+    <div class="card">
+      <div class="card__body">
+        <div class="badge badge--pending" style="margin-bottom:12px;">Verification pending</div>
+        <h2 style="margin-bottom:8px;">Doctor access is not active yet</h2>
+        <p style="color:var(--text-secondary);margin-bottom:18px;">
+          Your application is waiting for administrator review. You cannot access the doctor
+          review queue or approve patient reports until verification is complete.
+        </p>
+        <div id="details" class="review-box review-box--pending" style="margin-bottom:16px;">Loading application…</div>
+        <div class="cta-row">
+          <a class="btn btn--secondary" id="patientLink" href="/patient/dashboard">Continue as patient</a>
+          <button class="btn btn--ghost" onclick="logout()">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+  <script>
+    (async () => {
+      if (!BrainScan.token()) { location.href = '/login'; return; }
+      const { res, data } = await BrainScan.api('/api/auth/me', { headers: BrainScan.authHeaders(false) });
+      if (!res.ok) { logout(); return; }
+
+      if (data.role === 'doctor' && data.verification_status === 'verified') {
+        location.href = '/doctor/dashboard';
+        return;
+      }
+
+      const app = data.doctor_application;
+      const el = document.getElementById('details');
+      if (!app) {
+        el.innerHTML = `
+          <p>No open doctor application was found for this account.</p>
+          <p style="margin-top:8px;"><a href="/apply-doctor">Submit a verification request</a></p>`;
+        return;
+      }
+      el.innerHTML = `
+        <p><strong>Status:</strong> ${BrainScan.statusLabel(app.application_status)}</p>
+        <p style="margin-top:6px;"><strong>Registration no.:</strong> ${BrainScan.escapeHtml(app.medical_registration_number)}</p>
+        <p style="margin-top:6px;"><strong>Hospital:</strong> ${BrainScan.escapeHtml(app.hospital)}</p>
+        <p style="margin-top:6px;"><strong>Qualification:</strong> ${BrainScan.escapeHtml(app.qualification)}</p>
+        <p style="margin-top:6px;"><strong>Submitted:</strong> ${BrainScan.formatDateTime(app.created_at)}</p>
+        ${app.admin_notes ? `<p style="margin-top:6px;"><strong>Admin notes:</strong> ${BrainScan.escapeHtml(app.admin_notes)}</p>` : ''}
+      `;
+      if (app.application_status === 'rejected') {
+        document.querySelector('.badge').className = 'badge badge--rejected';
+        document.querySelector('.badge').textContent = 'Application rejected';
+      }
+    })();
+  </script>
+</body>
+</html>

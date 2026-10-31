@@ -13,8 +13,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from webapp.auth import get_current_user, require_role
-from webapp.database import execute_query
+from fastapi.responses import Response
+from webapp.auth import require_role
+from webapp.database import execute_query, write_audit_log
+from webapp.report_generator import generate_clinical_report
 
 # ML imports
 from inference_2d import preprocess_2d, predict_2d
@@ -29,6 +31,35 @@ router = APIRouter()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 UPLOAD_DIR = os.path.join(BASE_DIR, "webapp", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+REVIEWED_STATUSES = frozenset({"approved", "rejected", "further_review"})
+
+
+def _resolve_upload(relative_name: str | None) -> str | None:
+    if not relative_name:
+        return None
+    path = os.path.join(UPLOAD_DIR, relative_name)
+    return path if os.path.isfile(path) else None
+
+
+def _fetch_owned_scan(scan_id: int, patient_id: int) -> dict:
+    rows = execute_query(
+        """SELECT s.id, s.filename, s.image_path, s.upload_time, s.status,
+                  r.tumor_detected, r.tumor_type, r.confidence,
+                  r.gradcam_path, r.overlay_path,
+                  dr.decision, dr.diagnosis, dr.notes, dr.reviewed_at,
+                  u.name AS doctor_name
+           FROM scans s
+           LEFT JOIN ai_results r ON r.scan_id = s.id
+           LEFT JOIN doctor_reviews dr ON dr.scan_id = s.id
+           LEFT JOIN users u ON u.id = dr.doctor_id
+           WHERE s.id = %s AND s.patient_id = %s""",
+        (scan_id, patient_id),
+        fetch=True,
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    return rows[0]
 
 
 @router.post("/upload")
@@ -115,8 +146,17 @@ async def upload_scan(
             ),
         )
 
+        write_audit_log(
+            current_user["id"],
+            "scan_uploaded",
+            f"Scan #{scan_id} uploaded: {file.filename}",
+            patient_id=current_user["id"],
+            report_id=scan_id,
+        )
+
         return {
             "scan_id": scan_id,
+            "status": "pending",
             "tumor_detected": pred_info["tumor_detected"],
             "tumor_type": cls_info.get("tumor_type"),
             "confidence": cls_info.get("confidence"),
@@ -135,8 +175,8 @@ def get_my_scans(current_user: dict = Depends(require_role("patient"))):
     rows = execute_query(
         """SELECT s.id, s.filename, s.upload_time, s.status,
                   r.tumor_detected, r.tumor_type, r.confidence,
-                  r.gradcam_path,
-                  dr.diagnosis, dr.notes, dr.reviewed_at,
+                  r.gradcam_path, r.overlay_path,
+                  dr.decision, dr.diagnosis, dr.notes, dr.reviewed_at,
                   u.name AS doctor_name
            FROM scans s
            LEFT JOIN ai_results r ON r.scan_id = s.id
@@ -152,20 +192,47 @@ def get_my_scans(current_user: dict = Depends(require_role("patient"))):
 
 @router.get("/scan/{scan_id}")
 def get_scan_detail(scan_id: int, current_user: dict = Depends(require_role("patient"))):
-    rows = execute_query(
-        """SELECT s.id, s.filename, s.image_path, s.upload_time, s.status,
-                  r.tumor_detected, r.tumor_type, r.confidence,
-                  r.gradcam_path, r.overlay_path,
-                  dr.diagnosis, dr.notes, dr.reviewed_at,
-                  u.name AS doctor_name
-           FROM scans s
-           LEFT JOIN ai_results r ON r.scan_id = s.id
-           LEFT JOIN doctor_reviews dr ON dr.scan_id = s.id
-           LEFT JOIN users u ON u.id = dr.doctor_id
-           WHERE s.id = %s AND s.patient_id = %s""",
-        (scan_id, current_user["id"]),
-        fetch=True,
+    return _fetch_owned_scan(scan_id, current_user["id"])
+
+
+@router.get("/scan/{scan_id}/report")
+def download_clinical_report(
+    scan_id: int,
+    current_user: dict = Depends(require_role("patient")),
+):
+    """
+    PDF clinical report — available only after a verified doctor has reviewed the scan.
+    """
+    scan = _fetch_owned_scan(scan_id, current_user["id"])
+
+    if scan.get("status") not in REVIEWED_STATUSES or not scan.get("decision"):
+        raise HTTPException(
+            status_code=400,
+            detail="Report is available only after a physician has completed review.",
+        )
+
+    pdf_bytes = generate_clinical_report(
+        patient_name=current_user["name"],
+        patient_email=current_user["email"],
+        scan=scan,
+        image_paths={
+            "original": _resolve_upload(scan.get("image_path")),
+            "overlay": _resolve_upload(scan.get("overlay_path")),
+            "gradcam": _resolve_upload(scan.get("gradcam_path")),
+        },
     )
-    if not rows:
-        raise HTTPException(status_code=404, detail="Scan not found")
-    return rows[0]
+
+    write_audit_log(
+        current_user["id"],
+        "clinical_report_downloaded",
+        f"Patient downloaded report for scan #{scan_id}",
+        patient_id=current_user["id"],
+        report_id=scan_id,
+    )
+
+    safe_name = f"BrainScan_Report_{scan_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )

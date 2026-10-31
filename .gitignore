@@ -15,6 +15,14 @@ models/*.pth
 
 # Uploaded MRI scans & generated images (patient data)
 webapp/uploads/
+webapp/webapp/
+
+# Runtime logs / local artifacts
+*.log
+webapp.log
+webapp_err.log
+data/test_report.pdf
+.pytest_cache/
 
 # SQLite database
 data/patient_records.db
