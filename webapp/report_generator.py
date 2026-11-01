@@ -166,12 +166,13 @@ def generate_clinical_report(
     # AI findings
     _section(pdf, "2. AI analysis summary")
     detected = scan.get("tumor_detected")
-    if detected is True:
-        detection = "Tumor region suggested by segmentation model"
-    elif detected is False:
-        detection = "No tumor region suggested"
-    else:
+    # SQLite stores booleans as 0/1; MySQL may return 0/1 or True/False
+    if detected is None:
         detection = "Unavailable"
+    elif int(detected) == 1 or detected is True:
+        detection = "Detected"
+    else:
+        detection = "Not detected"
 
     _kv_row(pdf, "Detection", detection)
     _kv_row(pdf, "Predicted type", _safe(scan.get("tumor_type") or "N/A"))
