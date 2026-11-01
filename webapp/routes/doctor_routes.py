@@ -2,11 +2,17 @@
 doctor_routes.py — Verified-doctor review queue and diagnosis submission.
 """
 
+from datetime import datetime, timezone
 from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from webapp.auth import require_verified_doctor
 from webapp.database import execute_query, write_audit_log
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 router = APIRouter()
 
@@ -107,10 +113,10 @@ def submit_review(
         execute_query(
             """
             UPDATE doctor_reviews
-            SET doctor_id=%s, decision=%s, diagnosis=%s, notes=%s, reviewed_at=NOW()
+            SET doctor_id=%s, decision=%s, diagnosis=%s, notes=%s, reviewed_at=%s
             WHERE scan_id=%s
             """,
-            (current_user["id"], req.decision, req.diagnosis, req.notes, scan_id),
+            (current_user["id"], req.decision, req.diagnosis, req.notes, _utc_now(), scan_id),
         )
     else:
         execute_query(

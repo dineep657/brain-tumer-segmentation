@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: brainscan-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: BT_DB_BACKEND
+        value: sqlite
+      - key: BT_SQLITE_PATH
+        value: /app/webapp/data/brainscan.db
+      - key: HOST
+        value: 0.0.0.0
+      # PORT is injected by Render automatically

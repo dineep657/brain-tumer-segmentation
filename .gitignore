@@ -10,12 +10,10 @@ __pycache__/
 dataset/
 classification_dataset/
 
-# Trained model weights (large binary files)
-models/*.pth
-
 # Uploaded MRI scans & generated images (patient data)
 webapp/uploads/
 webapp/webapp/
+webapp/data/*.db
 
 # Runtime logs / local artifacts
 *.log

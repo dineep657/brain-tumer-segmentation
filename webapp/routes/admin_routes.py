@@ -2,10 +2,16 @@
 admin_routes.py — Admin portal: users, doctor verification, scans, audit.
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, Field
 from webapp.auth import require_admin, hash_password
 from webapp.database import execute_query, write_audit_log
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 router = APIRouter()
 
@@ -170,10 +176,10 @@ def approve_doctor_application(
         """
         UPDATE doctor_verifications
         SET application_status='approved', admin_notes=%s,
-            reviewed_by=%s, reviewed_at=NOW()
+            reviewed_by=%s, reviewed_at=%s
         WHERE id=%s
         """,
-        (body.admin_notes or None, current_user["id"], application_id),
+        (body.admin_notes or None, current_user["id"], _utc_now(), application_id),
     )
     execute_query(
         """
@@ -213,10 +219,10 @@ def reject_doctor_application(
         """
         UPDATE doctor_verifications
         SET application_status='rejected', admin_notes=%s,
-            reviewed_by=%s, reviewed_at=NOW()
+            reviewed_by=%s, reviewed_at=%s
         WHERE id=%s
         """,
-        (body.admin_notes or None, current_user["id"], application_id),
+        (body.admin_notes or None, current_user["id"], _utc_now(), application_id),
     )
     execute_query(
         """
