@@ -42,6 +42,24 @@ def ensure_dirs() -> None:
     os.makedirs(os.path.join(base, "data"), exist_ok=True)
 
 
+def warm_models() -> None:
+    """Load UNet + classifier into memory before accepting traffic (avoids 1st-upload stall)."""
+    import torch
+
+    # Free-tier CPUs thrash with too many OpenMP threads
+    threads = int(os.environ.get("BT_TORCH_THREADS", "1"))
+    torch.set_num_threads(max(1, threads))
+    os.environ.setdefault("OMP_NUM_THREADS", str(max(1, threads)))
+
+    from inference_2d import load_trained_model
+    from classifier_2d import load_trained_classifier
+
+    t0 = time.perf_counter()
+    load_trained_model()
+    load_trained_classifier()
+    print(f"Models warmed in {time.perf_counter() - t0:.1f}s (threads={threads}).")
+
+
 def main() -> None:
     ensure_dirs()
     wait_for_db()
@@ -49,6 +67,7 @@ def main() -> None:
     from webapp.init_db import init_database
 
     init_database()
+    warm_models()
 
     import uvicorn
 

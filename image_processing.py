@@ -3,6 +3,69 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 
+
+def save_segmentation_overlay_fast(
+    raw_image: np.ndarray,
+    mask: np.ndarray,
+    output_path: str,
+    alpha: float = 0.45,
+    max_side: int = 512,
+) -> None:
+    """
+    Fast CPU overlay for the web app (no Matplotlib).
+    Draws a red tumor wash + yellow contour edge onto the MRI and saves PNG.
+    """
+    gray = np.asarray(raw_image, dtype=np.float32)
+    if gray.ndim != 2:
+        raise ValueError("raw_image must be 2D grayscale")
+
+    mask_u8 = (np.asarray(mask) > 0).astype(np.uint8)
+    if mask_u8.shape != gray.shape:
+        raise ValueError("mask shape must match raw_image")
+
+    # Normalize to 0-255 uint8
+    g_min, g_max = float(gray.min()), float(gray.max())
+    if g_max > g_min:
+        gray_u8 = ((gray - g_min) / (g_max - g_min) * 255.0).astype(np.uint8)
+    else:
+        gray_u8 = np.clip(gray, 0, 255).astype(np.uint8)
+
+    rgb = np.stack([gray_u8, gray_u8, gray_u8], axis=-1).astype(np.float32)
+    if mask_u8.any():
+        red = np.zeros_like(rgb)
+        red[..., 0] = 220.0
+        a = float(np.clip(alpha, 0.0, 1.0))
+        tumor = mask_u8.astype(bool)
+        rgb[tumor] = (1.0 - a) * rgb[tumor] + a * red[tumor]
+
+    img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), mode="RGB")
+
+    if mask_u8.any():
+        # Cheap edge: pixels in mask with a non-mask 4-neighbour
+        padded = np.pad(mask_u8, 1, mode="constant")
+        edge = (
+            (mask_u8 == 1)
+            & (
+                (padded[1:-1, :-2] == 0)
+                | (padded[1:-1, 2:] == 0)
+                | (padded[:-2, 1:-1] == 0)
+                | (padded[2:, 1:-1] == 0)
+            )
+        )
+        edge_img = Image.fromarray((edge.astype(np.uint8) * 255), mode="L")
+        yellow = Image.new("RGB", img.size, (250, 204, 21))
+        img.paste(yellow, mask=edge_img)
+
+    # Downscale for web response / free-tier CPU
+    w, h = img.size
+    longest = max(w, h)
+    if longest > max_side:
+        scale = max_side / float(longest)
+        img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.Resampling.BILINEAR)
+
+    img.save(output_path, format="PNG", optimize=True)
+
+
 def render_segmentation_figure(
     raw_image: np.ndarray,
     mask: np.ndarray,

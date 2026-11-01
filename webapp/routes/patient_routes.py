@@ -5,13 +5,9 @@ patient_routes.py — Patient scan upload and history endpoints.
 import os
 import shutil
 import uuid
-import numpy as np
-import torch
-import torch.nn.functional as F
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
+import numpy as np
+import torch.nn.functional as F
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import Response
 from webapp.auth import require_role
@@ -22,7 +18,7 @@ from webapp.report_generator import generate_clinical_report
 from inference_2d import preprocess_2d, predict_2d
 from classifier_2d import classify_tumor_2d, load_trained_classifier
 from gradcam import generate_gradcam, resize_activation_map, blend_heatmap_with_image
-from image_processing import render_segmentation_figure
+from image_processing import save_segmentation_overlay_fast
 from PIL import Image
 
 router = APIRouter()
@@ -96,26 +92,30 @@ async def upload_scan(
 
         mask = pred_info["mask"]
 
-        # 1. Save segmentation overlay image (original + red mask + yellow contour)
+        # 1. Fast PIL overlay (Matplotlib is too slow on free Render CPU)
         overlay_filename = None
         try:
-            fig = render_segmentation_figure(
-                raw_original, mask, alpha=0.5,
-                show_overlay=pred_info["is_valid_mri"],
-                high_contrast=False,
-                show_contours=pred_info["is_valid_mri"],
-                title="Tumor Segmentation Overlay"
-            )
             overlay_filename = f"overlay_{uuid.uuid4().hex}.png"
-            fig.savefig(
-                os.path.join(UPLOAD_DIR, overlay_filename),
-                dpi=150, bbox_inches='tight', facecolor='#0E1117'
-            )
-            plt.close(fig)
+            if pred_info["is_valid_mri"]:
+                save_segmentation_overlay_fast(
+                    raw_original,
+                    mask,
+                    os.path.join(UPLOAD_DIR, overlay_filename),
+                    alpha=0.5,
+                    max_side=512,
+                )
+            else:
+                # Still provide a preview of the uploaded slice
+                gray = Image.fromarray(
+                    (raw_original / max(float(raw_original.max()), 1.0) * 255).astype("uint8")
+                )
+                gray = gray.convert("RGB")
+                gray.thumbnail((512, 512))
+                gray.save(os.path.join(UPLOAD_DIR, overlay_filename), format="PNG", optimize=True)
         except Exception:
             overlay_filename = None
 
-        # 2. Grad-CAM heatmap
+        # 2. Grad-CAM heatmap (reuse cached classifier; downscale source for speed)
         gradcam_filename = None
         if pred_info["is_valid_mri"] and pred_info["tumor_detected"] and cls_info.get("classifier_called"):
             try:
@@ -124,10 +124,24 @@ async def upload_scan(
                 top_idx = CLASSES.index(cls_info["tumor_type"]) if cls_info["tumor_type"] in CLASSES else 0
                 tensor_128 = F.interpolate(tensor, size=(128, 128), mode="bilinear", align_corners=False)
                 activation = generate_gradcam(model, tensor_128, top_idx)
-                activation_resized = resize_activation_map(activation, raw_original.shape[0], raw_original.shape[1])
-                gradcam_img = blend_heatmap_with_image(raw_original, activation_resized, alpha=0.5)
+                # Blend at most 512px side for free-tier CPU
+                h0, w0 = raw_original.shape
+                scale = min(1.0, 512.0 / float(max(h0, w0)))
+                th, tw = max(1, int(h0 * scale)), max(1, int(w0 * scale))
+                if scale < 1.0:
+                    small = np.array(
+                        Image.fromarray(
+                            (raw_original / max(float(raw_original.max()), 1.0) * 255).astype("uint8")
+                        ).resize((tw, th), Image.Resampling.BILINEAR)
+                    ).astype("float32")
+                else:
+                    small = raw_original
+                activation_resized = resize_activation_map(activation, small.shape[0], small.shape[1])
+                gradcam_img = blend_heatmap_with_image(small, activation_resized, alpha=0.5)
                 gradcam_filename = f"gradcam_{uuid.uuid4().hex}.png"
-                Image.fromarray(gradcam_img).save(os.path.join(UPLOAD_DIR, gradcam_filename))
+                Image.fromarray(gradcam_img).save(
+                    os.path.join(UPLOAD_DIR, gradcam_filename), optimize=True
+                )
             except Exception:
                 gradcam_filename = None
 
