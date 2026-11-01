@@ -46,13 +46,14 @@
         </div>
 
         <div id="uploadSection">
+          <div id="uploadError" class="alert alert--error hidden" role="alert" style="margin-bottom:16px;"></div>
           <div class="upload-zone" id="dropZone"
                onclick="document.getElementById('fileInput').click()"
                ondragover="event.preventDefault(); this.classList.add('is-dragover')"
                ondragleave="this.classList.remove('is-dragover')"
                ondrop="handleDrop(event)">
             <h3>Drop your MRI scan here</h3>
-            <p>or click to browse — PNG, JPG, JPEG</p>
+            <p>or click to browse — PNG, JPG, JPEG brain MRI slices only</p>
             <div id="fileName" style="margin-top:14px;color:var(--accent);font-weight:700;"></div>
           </div>
           <input type="file" id="fileInput" accept=".png,.jpg,.jpeg" hidden onchange="fileSelected(event)" />
@@ -99,8 +100,23 @@
       document.getElementById('analyzeBtn').classList.toggle('hidden', !selectedFile);
     }
 
+    function showUploadError(message) {
+      const box = document.getElementById('uploadError');
+      box.textContent = message || 'Upload failed. Please try a brain MRI scan.';
+      box.classList.remove('hidden');
+      document.getElementById('uploadSection').classList.remove('hidden');
+      document.getElementById('results').classList.add('hidden');
+    }
+
+    function clearUploadError() {
+      const box = document.getElementById('uploadError');
+      box.textContent = '';
+      box.classList.add('hidden');
+    }
+
     async function uploadScan() {
       if (!selectedFile) return;
+      clearUploadError();
       document.getElementById('uploadSection').classList.add('hidden');
       document.getElementById('spinner').classList.remove('hidden');
       const formData = new FormData();
@@ -111,18 +127,19 @@
           headers: { Authorization: 'Bearer ' + BrainScan.token() },
           body: formData
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         document.getElementById('spinner').classList.add('hidden');
         if (!res.ok) {
-          document.getElementById('uploadSection').classList.remove('hidden');
-          alert(data.detail || 'Upload failed');
+          const detail = typeof data.detail === 'string'
+            ? data.detail
+            : 'Please upload a valid brain MRI scan.';
+          showUploadError(detail);
           return;
         }
         renderResults(data, { status: 'pending' });
       } catch (err) {
         document.getElementById('spinner').classList.add('hidden');
-        document.getElementById('uploadSection').classList.remove('hidden');
-        alert('Upload error: ' + err.message);
+        showUploadError('Upload error: ' + err.message);
       }
     }
 

@@ -85,33 +85,40 @@ async def upload_scan(
         tensor, raw_original, _ = preprocess_2d(save_path)
         pred_info = predict_2d(tensor, raw_original)
 
-        if pred_info["is_valid_mri"]:
-            cls_info = classify_tumor_2d(tensor, tumor_detected=pred_info["tumor_detected"])
-        else:
-            cls_info = {"tumor_type": "Invalid Input", "confidence": None, "classifier_called": False}
+        # Reject non-MRI images early with a clear patient-facing message
+        if not pred_info.get("is_valid_mri", False):
+            try:
+                execute_query("DELETE FROM scans WHERE id = %s", (scan_id,))
+            except Exception:
+                pass
+            try:
+                if os.path.isfile(save_path):
+                    os.remove(save_path)
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Please upload a brain MRI scan. "
+                    "The image you selected does not look like a valid 2D brain MRI "
+                    "(dark background with brain tissue). Try a PNG/JPG MRI slice."
+                ),
+            )
 
+        cls_info = classify_tumor_2d(tensor, tumor_detected=pred_info["tumor_detected"])
         mask = pred_info["mask"]
 
         # 1. Fast PIL overlay (Matplotlib is too slow on free Render CPU)
         overlay_filename = None
         try:
             overlay_filename = f"overlay_{uuid.uuid4().hex}.png"
-            if pred_info["is_valid_mri"]:
-                save_segmentation_overlay_fast(
-                    raw_original,
-                    mask,
-                    os.path.join(UPLOAD_DIR, overlay_filename),
-                    alpha=0.5,
-                    max_side=512,
-                )
-            else:
-                # Still provide a preview of the uploaded slice
-                gray = Image.fromarray(
-                    (raw_original / max(float(raw_original.max()), 1.0) * 255).astype("uint8")
-                )
-                gray = gray.convert("RGB")
-                gray.thumbnail((512, 512))
-                gray.save(os.path.join(UPLOAD_DIR, overlay_filename), format="PNG", optimize=True)
+            save_segmentation_overlay_fast(
+                raw_original,
+                mask,
+                os.path.join(UPLOAD_DIR, overlay_filename),
+                alpha=0.5,
+                max_side=512,
+            )
         except Exception:
             overlay_filename = None
 
@@ -171,6 +178,7 @@ async def upload_scan(
         return {
             "scan_id": scan_id,
             "status": "pending",
+            "is_valid_mri": True,
             "tumor_detected": pred_info["tumor_detected"],
             "tumor_type": cls_info.get("tumor_type"),
             "confidence": cls_info.get("confidence"),
@@ -180,6 +188,8 @@ async def upload_scan(
             "message": "Scan analysed. Awaiting doctor review.",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
 
